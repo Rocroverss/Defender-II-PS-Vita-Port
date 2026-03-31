@@ -34,7 +34,7 @@ constexpr int kSampleRate = 48000;
 constexpr size_t kMixFrames = 1024;
 constexpr size_t kMaxVoices = 5;
 constexpr uint64_t kMixBlockDurationMs = (kMixFrames * 1000ULL) / kSampleRate;
-constexpr bool kAudioDebug = true;
+constexpr bool kAudioDebug = false;
 constexpr const char* kDirectAppPathPrefix = "ux0:/app/DDEF00001/";
 
 void audio_debug_log(const char* fmt, ...) {

@@ -20,7 +20,7 @@ namespace defender {
 
 namespace {
 
-constexpr bool kPlistDebugLog = true;
+constexpr bool kPlistDebugLog = false;
 
 void plist_log(const char* fmt, ...) {
     if (!kPlistDebugLog) return;

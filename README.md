@@ -30,6 +30,9 @@ python apk_patcher.py
 ```
 
 4. Use the tool to prepare the game data from your APK.
+
+![example](img/IMG1.png)
+
 5. Install the generated VPK, or copy the patched files into `ux0:/app/DDEF00001/`.
 
 Expected final layout:

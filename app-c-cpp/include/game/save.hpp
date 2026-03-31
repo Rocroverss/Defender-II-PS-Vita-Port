@@ -16,6 +16,8 @@ public:
     static constexpr const char* CHECK_VALUE = "checkValue";
     static constexpr const char* COST_COIN = "costCoin";
     static constexpr const char* COST_STONE = "costStone";
+    static constexpr const char* DAILY_SHOP_CLAIM_DAY = "dailyShopClaimDay";
+    static constexpr const char* DAILY_SHOP_CLAIM_TYPE = "dailyShopClaimType";
     static constexpr const char* DEVICEID = "deviceID";
     static constexpr const char* EQUIPED_BOW = "equipBow";
     static constexpr const char* EQUIPED_MAGIC = "equipMagic";
@@ -78,4 +80,3 @@ private:
 };
 
 } // namespace defender
-

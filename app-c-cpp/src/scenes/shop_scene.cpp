@@ -2,15 +2,17 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdint>
+#include <string>
 #include <utility>
 
 #include "engine/abstract_game.hpp"
 #include "engine/font_renderer.hpp"
 #include "engine/render_utils.hpp"
 #include "engine/texture_cache.hpp"
-#include "game/achv_mng.hpp"
 #include "game/audio_manager.hpp"
 #include "game/param.hpp"
 #include "game/save.hpp"
@@ -21,22 +23,44 @@ namespace {
 
 constexpr const char* kShopBg = "assets/imgs_480_800/shop/shop_bg_fixed.jpg";
 
-constexpr std::array<ShopScene::ShopButton, 7> kButtons = {{
+constexpr std::array<ShopScene::ShopButton, 6> kButtons = {{
     {"assets/imgs_480_800/shop/shop_bt1_up.png", "assets/imgs_480_800/shop/shop_bt1_down.png", 30.0f, 310.0f, 350.0f, 110.0f},
     {"assets/imgs_480_800/shop/shop_bt2_up.png", "assets/imgs_480_800/shop/shop_bt2_down.png", 30.0f, 190.0f, 350.0f, 110.0f},
     {"assets/imgs_480_800/shop/shop_bt3_up.png", "assets/imgs_480_800/shop/shop_bt3_down.png", 30.0f, 70.0f, 350.0f, 110.0f},
     {"assets/imgs_480_800/shop/shop_bt4_up.png", "assets/imgs_480_800/shop/shop_bt4_down.png", 410.0f, 310.0f, 350.0f, 110.0f},
     {"assets/imgs_480_800/shop/shop_bt5_up.png", "assets/imgs_480_800/shop/shop_bt5_down.png", 410.0f, 190.0f, 350.0f, 110.0f},
-    {"assets/imgs_480_800/shop/shop_bt6_up.png", "assets/imgs_480_800/shop/shop_bt6_down.png", 410.0f, 70.0f, 350.0f, 110.0f},
-    {"assets/imgs_480_800/shop/shop_btfree_up.png", "assets/imgs_480_800/shop/shop_btfree_down.png", 600.0f, 10.0f, 170.0f, 54.0f}
+    {"assets/imgs_480_800/shop/shop_bt6_up.png", "assets/imgs_480_800/shop/shop_bt6_down.png", 410.0f, 70.0f, 350.0f, 110.0f}
 }};
-
-constexpr std::array<const char*, 6> kPriceText = {
-    "$1.99", "$4.99", "$9.99", "$1.99", "$4.99", "$14.99"
-};
 
 constexpr std::array<int, 3> kCoinPack = {10000, 25000, 60000};
 constexpr std::array<int, 3> kStonePack = {25, 75, 200};
+
+constexpr float kOfferButtonX = 225.0f;
+constexpr float kGoldOfferY = 120.0f;
+constexpr float kStoneOfferY = 250.0f;
+constexpr float kInfoBoxX = 175.0f;
+constexpr float kInfoBoxY = 58.0f;
+constexpr float kInfoBoxW = 450.0f;
+constexpr float kInfoBoxH = 26.0f;
+constexpr float kClaimedBoxX = 170.0f;
+constexpr float kClaimedBoxY = 392.0f;
+constexpr float kClaimedBoxW = 460.0f;
+constexpr float kClaimedBoxH = 28.0f;
+
+constexpr float kConfirmPanelX = 165.0f;
+constexpr float kConfirmPanelY = 120.0f;
+constexpr float kConfirmPanelW = 470.0f;
+constexpr float kConfirmPanelH = 210.0f;
+constexpr float kConfirmYesX = 278.0f;
+constexpr float kConfirmYesY = 265.0f;
+constexpr float kConfirmNoX = 402.0f;
+constexpr float kConfirmNoY = 265.0f;
+constexpr float kConfirmButtonW = 120.0f;
+constexpr float kConfirmButtonH = 42.0f;
+
+constexpr int kClaimTypeNone = 0;
+constexpr int kClaimTypeGold = 1;
+constexpr int kClaimTypeStone = 2;
 
 void draw_background_cover(const char* path) {
     const auto& tex = TextureCache::instance().get(path);
@@ -60,6 +84,71 @@ void draw_sprite(const char* path, float x, float y, float w, float h, float alp
     }
 }
 
+bool hit_box(float x, float y, float w, float h, float px, float py) {
+    const float x0 = Scene::get_x(x);
+    const float y0 = Scene::get_y(y);
+    const float x1 = Scene::get_x(x + w);
+    const float y1 = Scene::get_y(y + h);
+    return px >= x0 && px <= x1 && py >= y0 && py <= y1;
+}
+
+void draw_centered_text_box(
+    FontRenderer& fonts,
+    FontFaceId font,
+    const std::string& text,
+    float box_x,
+    float box_y,
+    float box_w,
+    float box_h,
+    float font_size,
+    float r,
+    float g,
+    float b,
+    float a
+) {
+    const float pixel_height = Scene::get_y(font_size);
+    const float text_width = fonts.measure_text_width(font, text, pixel_height);
+    const float draw_x = Scene::get_x(box_x) + std::max(0.0f, (Scene::get_x(box_w) - text_width) * 0.5f);
+    const float draw_y = Scene::get_y(box_y + ((box_h - font_size) * 0.5f) + font_size);
+    fonts.draw_text(font, text, draw_x + Scene::get_x(1.0f), draw_y + Scene::get_y(1.0f), pixel_height, 0.0f, 0.0f, 0.0f, a);
+    fonts.draw_text(font, text, draw_x, draw_y, pixel_height, r, g, b, a);
+}
+
+int64_t current_utc_day_key() {
+    using namespace std::chrono;
+    const auto now = system_clock::now().time_since_epoch();
+    return duration_cast<hours>(now).count() / 24;
+}
+
+uint64_t mix_seed(uint64_t value) {
+    value += 0x9e3779b97f4a7c15ULL;
+    value = (value ^ (value >> 30U)) * 0xbf58476d1ce4e5b9ULL;
+    value = (value ^ (value >> 27U)) * 0x94d049bb133111ebULL;
+    return value ^ (value >> 31U);
+}
+
+int pick_offer_index(int64_t day_key, uint64_t salt, int offset) {
+    const uint64_t mixed = mix_seed(static_cast<uint64_t>(day_key) ^ salt);
+    return offset + static_cast<int>(mixed % 3ULL);
+}
+
+std::string format_amount(int value) {
+    std::string digits = std::to_string(std::max(0, value));
+    std::string out;
+    out.reserve(digits.size() + (digits.size() / 3U));
+    int group_count = 0;
+    for (auto it = digits.rbegin(); it != digits.rend(); ++it) {
+        if (group_count == 3) {
+            out.push_back(',');
+            group_count = 0;
+        }
+        out.push_back(*it);
+        ++group_count;
+    }
+    std::reverse(out.begin(), out.end());
+    return out;
+}
+
 } // namespace
 
 ShopScene::ShopScene(TransitionRequest transition_cb) : transition_cb_(std::move(transition_cb)) {}
@@ -76,43 +165,150 @@ void ShopScene::draw_button(const ShopButton& button, bool pressed, float alpha)
     draw_sprite(pressed ? button.down : button.up, button.x, button.y, button.w, button.h, alpha);
 }
 
-void ShopScene::purchase(int id) {
-    if (id < 0 || id >= 7) {
+void ShopScene::refresh_daily_offer() {
+    const int64_t day_key = current_utc_day_key();
+    if (offer_day_key_ != day_key) {
+        offer_day_key_ = day_key;
+        gold_offer_id_ = pick_offer_index(day_key, 0x4f1bbcdcb1234aa1ULL, 0);
+        stone_offer_id_ = pick_offer_index(day_key, 0x8e88ad6ca8d3f527ULL, 3);
+    }
+
+    claimed_day_key_ = static_cast<int64_t>(Save::load_data(Save::DAILY_SHOP_CLAIM_DAY));
+    claimed_reward_type_ = Save::load_data(Save::DAILY_SHOP_CLAIM_TYPE);
+    if (claimed_day_key_ != offer_day_key_) {
+        claimed_reward_type_ = kClaimTypeNone;
+    }
+}
+
+void ShopScene::show_confirmation(int id) {
+    if (!is_offer_button(id) || is_claimed_today()) {
+        return;
+    }
+    confirm_choice_id_ = id;
+    confirm_pressed_id_ = -1;
+    confirm_visible_ = true;
+}
+
+void ShopScene::claim_reward(int id) {
+    if (!is_offer_button(id) || is_claimed_today()) {
         return;
     }
 
-    if (id < 3) {
-        const int add = kCoinPack[static_cast<size_t>(id)];
-        Param::gold += add;
-        Param::cost_coin += add;
+    if (is_gold_offer(id)) {
+        Param::gold += kCoinPack[static_cast<size_t>(id)];
         Save::save_data(Save::GOLD, Param::gold);
-        Save::save_data(Save::COST_COIN, Param::cost_coin);
-        AchvMng::check_achv_in_game(0);
-        return;
-    }
-
-    if (id < 6) {
-        const int add = kStonePack[static_cast<size_t>(id - 3)];
-        Param::stone += add;
-        Param::cost_stone += add;
+        claimed_reward_type_ = kClaimTypeGold;
+    } else {
+        Param::stone += kStonePack[static_cast<size_t>(id - 3)];
         Save::save_data(Save::STONE, Param::stone);
-        Save::save_data(Save::COST_STONE, Param::cost_stone);
-        AchvMng::check_achv_in_game(1);
-        return;
+        claimed_reward_type_ = kClaimTypeStone;
     }
 
-    Param::stone += 5;
-    Save::save_data(Save::STONE, Param::stone);
-    AchvMng::check_achv_in_game(1);
+    claimed_day_key_ = offer_day_key_;
+    Save::save_data(Save::DAILY_SHOP_CLAIM_DAY, static_cast<int>(offer_day_key_));
+    Save::save_data(Save::DAILY_SHOP_CLAIM_TYPE, claimed_reward_type_);
+}
+
+ShopScene::ShopButton ShopScene::display_button_for_offer(int id) const {
+    if (id < 0 || id >= static_cast<int>(kButtons.size())) {
+        return {};
+    }
+
+    ShopButton button = kButtons[static_cast<size_t>(id)];
+    button.x = kOfferButtonX;
+    button.y = is_gold_offer(id) ? kGoldOfferY : kStoneOfferY;
+    return button;
+}
+
+bool ShopScene::is_offer_button(int id) const {
+    return id == gold_offer_id_ || id == stone_offer_id_;
+}
+
+bool ShopScene::is_claimed_today() const {
+    return claimed_day_key_ == offer_day_key_ && claimed_reward_type_ != kClaimTypeNone;
+}
+
+bool ShopScene::is_claimed_choice(int id) const {
+    if (!is_claimed_today()) {
+        return false;
+    }
+    if (claimed_reward_type_ == kClaimTypeGold) {
+        return is_gold_offer(id);
+    }
+    if (claimed_reward_type_ == kClaimTypeStone) {
+        return !is_gold_offer(id);
+    }
+    return false;
+}
+
+bool ShopScene::is_gold_offer(int id) const {
+    return id >= 0 && id < 3;
+}
+
+std::string ShopScene::reward_text(int id) const {
+    if (id >= 0 && id < 3) {
+        return format_amount(kCoinPack[static_cast<size_t>(id)]) + " GOLD";
+    }
+    if (id >= 3 && id < 6) {
+        return format_amount(kStonePack[static_cast<size_t>(id - 3)]) + " CRYSTALS";
+    }
+    return "DAILY";
+}
+
+bool ShopScene::touch_confirmation(const TouchEvent& event) {
+    if (!confirm_visible_) {
+        return false;
+    }
+
+    if (event.action == TouchAction::Down) {
+        confirm_pressed_id_ = -1;
+        if (hit_box(kConfirmYesX, kConfirmYesY, kConfirmButtonW, kConfirmButtonH, event.x1, event.y1)) {
+            confirm_pressed_id_ = 0;
+        } else if (hit_box(kConfirmNoX, kConfirmNoY, kConfirmButtonW, kConfirmButtonH, event.x1, event.y1)) {
+            confirm_pressed_id_ = 1;
+        }
+        return true;
+    }
+
+    if (event.action == TouchAction::Up) {
+        const int pressed = confirm_pressed_id_;
+        confirm_pressed_id_ = -1;
+
+        if (pressed == 0 && hit_box(kConfirmYesX, kConfirmYesY, kConfirmButtonW, kConfirmButtonH, event.x1, event.y1)) {
+            AudioManager::instance().play_sound(Sounds::BUTTON_CLICK_SND);
+            claim_reward(confirm_choice_id_);
+            confirm_visible_ = false;
+            confirm_choice_id_ = -1;
+            return true;
+        }
+
+        if (pressed == 1 && hit_box(kConfirmNoX, kConfirmNoY, kConfirmButtonW, kConfirmButtonH, event.x1, event.y1)) {
+            AudioManager::instance().play_sound(Sounds::BUTTON_CLICK_SND);
+            confirm_visible_ = false;
+            confirm_choice_id_ = -1;
+            return true;
+        }
+    }
+
+    return true;
 }
 
 bool ShopScene::touch(const TouchEvent& event) {
+    refresh_daily_offer();
+
+    if (confirm_visible_) {
+        return touch_confirmation(event);
+    }
+
     if (event.action == TouchAction::Down) {
         pressed_id_ = -1;
-        for (int i = 0; i < static_cast<int>(kButtons.size()); ++i) {
-            if (hit_test(kButtons[static_cast<size_t>(i)], event.x1, event.y1)) {
-                pressed_id_ = i;
-                return true;
+        if (!is_claimed_today()) {
+            for (const int offer_id : {gold_offer_id_, stone_offer_id_}) {
+                const ShopButton button = display_button_for_offer(offer_id);
+                if (hit_test(button, event.x1, event.y1)) {
+                    pressed_id_ = offer_id;
+                    break;
+                }
             }
         }
         return true;
@@ -121,9 +317,9 @@ bool ShopScene::touch(const TouchEvent& event) {
     if (event.action == TouchAction::Up) {
         const int released_id = pressed_id_;
         pressed_id_ = -1;
-        if (released_id >= 0 && hit_test(kButtons[static_cast<size_t>(released_id)], event.x1, event.y1)) {
+        if (released_id >= 0 && hit_test(display_button_for_offer(released_id), event.x1, event.y1)) {
             AudioManager::instance().play_sound(Sounds::BUTTON_CLICK_SND);
-            purchase(released_id);
+            show_confirmation(released_id);
             return true;
         }
     }
@@ -132,42 +328,41 @@ bool ShopScene::touch(const TouchEvent& event) {
 }
 
 void ShopScene::draw() {
+    refresh_daily_offer();
     draw_background_cover(kShopBg);
 
-    for (int i = 0; i < static_cast<int>(kButtons.size()); ++i) {
-        float alpha = 1.0f;
-        if (i == 6) {
-            const float t = std::abs(500.0f - static_cast<float>(AbstractGame::game_time_ms() % 1000ULL)) / 500.0f;
-            alpha = 0.70f + (0.30f * (1.0f - t));
+    const float highlight = 0.82f + (0.18f * (1.0f - std::abs(500.0f - static_cast<float>(AbstractGame::game_time_ms() % 1000ULL)) / 500.0f));
+
+    auto& fonts = FontRenderer::instance();
+
+    draw_centered_text_box(
+        fonts,
+        FontFaceId::Ants,
+        "Choose one reward for today.",
+        kInfoBoxX,
+        kInfoBoxY,
+        kInfoBoxW,
+        kInfoBoxH,
+        17.0f,
+        0.97f,
+        0.94f,
+        0.86f,
+        0.96f
+    );
+
+    for (const int offer_id : {gold_offer_id_, stone_offer_id_}) {
+        const ShopButton button = display_button_for_offer(offer_id);
+        float alpha = highlight;
+        if (is_claimed_today() && !is_claimed_choice(offer_id)) {
+            alpha = 0.45f;
+        } else if (is_claimed_choice(offer_id)) {
+            alpha = 0.88f;
         }
-        draw_button(kButtons[static_cast<size_t>(i)], pressed_id_ == i, alpha);
+
+        draw_button(button, pressed_id_ == offer_id, alpha);
     }
 
     char line[64];
-    auto& fonts = FontRenderer::instance();
-
-    const std::array<std::pair<float, float>, 6> price_pos = {{
-        {260.0f, 355.0f},
-        {260.0f, 235.0f},
-        {260.0f, 115.0f},
-        {640.0f, 355.0f},
-        {640.0f, 235.0f},
-        {640.0f, 115.0f}
-    }};
-    for (int i = 0; i < 6; ++i) {
-        fonts.draw_text(
-            FontFaceId::Cooper,
-            kPriceText[static_cast<size_t>(i)],
-            get_x(price_pos[static_cast<size_t>(i)].first),
-            get_y(price_pos[static_cast<size_t>(i)].second),
-            get_y(18.0f),
-            1.0f,
-            1.0f,
-            1.0f,
-            0.98f
-        );
-    }
-
     std::snprintf(line, sizeof(line), "GOLD %d", std::max(0, Param::gold));
     fonts.draw_text(
         FontFaceId::Ants,
@@ -194,20 +389,89 @@ void ShopScene::draw() {
         0.98f
     );
 
-    fonts.draw_text(
+    if (is_claimed_today()) {
+        draw_centered_text_box(
+            fonts,
+            FontFaceId::Ants,
+            "Today's reward has already been chosen.",
+            kClaimedBoxX,
+            kClaimedBoxY,
+            kClaimedBoxW,
+            kClaimedBoxH,
+            16.0f,
+            0.97f,
+            0.94f,
+            0.86f,
+            0.96f
+        );
+    }
+
+    if (!confirm_visible_) {
+        return;
+    }
+
+    draw_quad(0.0f, 0.0f, Scene::screen_width, Scene::screen_height, 0.0f, 0.0f, 0.0f, 0.62f);
+    draw_quad(Scene::get_x(kConfirmPanelX), Scene::get_y(kConfirmPanelY), Scene::get_x(kConfirmPanelW), Scene::get_y(kConfirmPanelH), 0.12f, 0.10f, 0.08f, 0.94f);
+    draw_quad(Scene::get_x(kConfirmPanelX + 4.0f), Scene::get_y(kConfirmPanelY + 4.0f), Scene::get_x(kConfirmPanelW - 8.0f), Scene::get_y(kConfirmPanelH - 8.0f), 0.25f, 0.20f, 0.14f, 0.96f);
+
+    const std::string confirm_reward = reward_text(confirm_choice_id_);
+    const std::string confirm_title = is_gold_offer(confirm_choice_id_)
+        ? "Claim today's free gold reward?"
+        : "Claim today's free crystal reward?";
+
+    draw_centered_text_box(
+        fonts,
         FontFaceId::Cooper,
-        "SHOP",
-        get_x(715.0f),
-        get_y(34.0f),
-        get_y(22.0f),
-        0.97f,
-        0.90f,
-        0.70f,
+        confirm_title,
+        kConfirmPanelX + 20.0f,
+        kConfirmPanelY + 56.0f,
+        kConfirmPanelW - 40.0f,
+        28.0f,
+        20.0f,
+        0.98f,
+        0.94f,
+        0.82f,
         0.98f
     );
+    draw_centered_text_box(
+        fonts,
+        FontFaceId::Cooper,
+        confirm_reward,
+        kConfirmPanelX + 40.0f,
+        kConfirmPanelY + 108.0f,
+        kConfirmPanelW - 80.0f,
+        28.0f,
+        22.0f,
+        1.0f,
+        0.97f,
+        0.72f,
+        0.98f
+    );
+    draw_centered_text_box(
+        fonts,
+        FontFaceId::Ants,
+        "You can only take one free shop reward each day.",
+        kConfirmPanelX + 24.0f,
+        kConfirmPanelY + 150.0f,
+        kConfirmPanelW - 48.0f,
+        22.0f,
+        14.0f,
+        0.93f,
+        0.93f,
+        0.93f,
+        0.96f
+    );
+
+    const bool yes_pressed = confirm_pressed_id_ == 0;
+    const bool no_pressed = confirm_pressed_id_ == 1;
+    draw_quad(Scene::get_x(kConfirmYesX), Scene::get_y(kConfirmYesY), Scene::get_x(kConfirmButtonW), Scene::get_y(kConfirmButtonH), yes_pressed ? 0.78f : 0.63f, yes_pressed ? 0.55f : 0.42f, yes_pressed ? 0.20f : 0.14f, 0.98f);
+    draw_quad(Scene::get_x(kConfirmNoX), Scene::get_y(kConfirmNoY), Scene::get_x(kConfirmButtonW), Scene::get_y(kConfirmButtonH), no_pressed ? 0.48f : 0.34f, no_pressed ? 0.17f : 0.12f, no_pressed ? 0.17f : 0.12f, 0.98f);
+    draw_centered_text_box(fonts, FontFaceId::Cooper, "YES", kConfirmYesX, kConfirmYesY + 4.0f, kConfirmButtonW, kConfirmButtonH - 8.0f, 19.0f, 0.99f, 0.96f, 0.86f, 0.98f);
+    draw_centered_text_box(fonts, FontFaceId::Cooper, "NO", kConfirmNoX, kConfirmNoY + 4.0f, kConfirmButtonW, kConfirmButtonH - 8.0f, 19.0f, 0.95f, 0.92f, 0.92f, 0.98f);
 }
 
 void ShopScene::update() {
+    refresh_daily_offer();
     pulse_ += static_cast<float>(AbstractGame::last_span_ms()) / 600.0f;
     if (pulse_ > 2.0f) {
         pulse_ -= 2.0f;
@@ -215,7 +479,14 @@ void ShopScene::update() {
 }
 
 void ShopScene::reset() {
+    Param::gold = Save::load_data(Save::GOLD);
+    Param::stone = Save::load_data(Save::STONE);
+
+    refresh_daily_offer();
     pressed_id_ = -1;
+    confirm_choice_id_ = -1;
+    confirm_pressed_id_ = -1;
+    confirm_visible_ = false;
     pulse_ = 0.0f;
     scene_x = 0.0f;
     scene_y = 0.0f;

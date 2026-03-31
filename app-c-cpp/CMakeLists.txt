@@ -17,7 +17,7 @@ endif ()
 include("${VITASDK}/share/vita.cmake" REQUIRED)
 
 # Vita application configuration
-set(VITA_APP_NAME "Defender II Vita Port")
+set(VITA_APP_NAME "Defender II")
 set(VITA_TITLEID  "DDEF00001")
 set(VITA_VPKNAME  "defender2_vita")
 set(VITA_VERSION  "01.00")
@@ -222,8 +222,6 @@ list(REMOVE_DUPLICATES ASSET_FILES)
 
 set(_AUDIO_ASSET_FILES ${ASSET_FILES})
 list(FILTER _AUDIO_ASSET_FILES INCLUDE REGEX "^assets/audio/")
-list(LENGTH _AUDIO_ASSET_FILES AUDIO_ASSET_COUNT)
-message(STATUS "Audio assets queued for VPK: ${AUDIO_ASSET_COUNT}")
 
 set(ASSET_FILE_ARGS)
 foreach(ASSET_REL_PATH IN LISTS ASSET_FILES)
