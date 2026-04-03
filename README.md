@@ -1,11 +1,13 @@
 # Defender II PS Vita Port
 
+Defender II is a pretty classic tower defense / castle defense game where you protect your castle from endless waves of enemies using a bow and powerful magic.
+
+You play as the last defender, shooting arrows manually while upgrading your strength, speed, and abilities. As the game goes on, enemies become stronger and more challenging, so you’ll need to improve your skills and unlock new defenses like magic towers and special powers.
+
 `app-c-cpp` contains the native C++/VitaGL port of Defender II for PS Vita. This is the Vita-specific side of the project: source code, packaging files, bundled Vita assets, and the helper script used to prepare the required game data.
 
 > [!WARNING]
-> This port was created as an experiment to evaluate how well LLMs can handle code translation between programming languages.
-> AI was used primarily for code translation and initial integration, but the result has been manually reviewed and adjusted in many areas.
-> Please be aware that there may still be unexpected issues or risks.
+> This port was developed as an experiment to assess how effectively LLMs can reverse engineer closed-source applications and recreate their behavior through a ground-up reimplementation. AI was primarily used for code analysis and initial implementation, while the final result has been manually reviewed and refined in multiple areas. Please note that some unexpected issues or risks may still be present.
 
 ## Important
 
