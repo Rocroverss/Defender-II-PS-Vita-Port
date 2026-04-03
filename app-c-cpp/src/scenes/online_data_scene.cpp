@@ -493,6 +493,16 @@ void draw_multiline_layout_box(FontRenderer& fonts,
 }
 
 bool OnlineDataScene::touch(const TouchEvent& event) {
+    if (event.action == TouchAction::Down &&
+        HelpOverlay::wants_name_plate_touch() &&
+        hit_test_box(kNameBoxX, kNameBoxY, kNameBoxW, kNameBoxH, event.x1, event.y1)) {
+        pending_name_before_edit_ = Param::player_name;
+        name_edit_pending_ = true;
+        Param::request_name_edit = true;
+        HelpOverlay::active();
+        return true;
+    }
+
     if (HelpOverlay::touch(event, event.x1, event.y1)) {
         return true;
     }

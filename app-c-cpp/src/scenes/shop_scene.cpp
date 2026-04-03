@@ -51,16 +51,25 @@ constexpr float kConfirmPanelX = 165.0f;
 constexpr float kConfirmPanelY = 120.0f;
 constexpr float kConfirmPanelW = 470.0f;
 constexpr float kConfirmPanelH = 210.0f;
-constexpr float kConfirmYesX = 278.0f;
-constexpr float kConfirmYesY = 265.0f;
-constexpr float kConfirmNoX = 402.0f;
-constexpr float kConfirmNoY = 265.0f;
-constexpr float kConfirmButtonW = 120.0f;
-constexpr float kConfirmButtonH = 42.0f;
+constexpr float kConfirmButtonY = 260.0f;
+constexpr float kConfirmButtonW = 132.0f;
+constexpr float kConfirmButtonH = 46.0f;
+constexpr float kConfirmButtonGap = 18.0f;
+constexpr float kConfirmYesX = kConfirmPanelX + ((kConfirmPanelW - ((kConfirmButtonW * 2.0f) + kConfirmButtonGap)) * 0.5f);
+constexpr float kConfirmYesY = kConfirmButtonY;
+constexpr float kConfirmNoX = kConfirmYesX + kConfirmButtonW + kConfirmButtonGap;
+constexpr float kConfirmNoY = kConfirmButtonY;
 
 constexpr int kClaimTypeNone = 0;
 constexpr int kClaimTypeGold = 1;
 constexpr int kClaimTypeStone = 2;
+
+struct ConfirmButtonLayout {
+    float x;
+    float y;
+    float w;
+    float h;
+};
 
 void draw_background_cover(const char* path) {
     const auto& tex = TextureCache::instance().get(path);
@@ -112,6 +121,80 @@ void draw_centered_text_box(
     const float draw_y = Scene::get_y(box_y + ((box_h - font_size) * 0.5f) + font_size);
     fonts.draw_text(font, text, draw_x + Scene::get_x(1.0f), draw_y + Scene::get_y(1.0f), pixel_height, 0.0f, 0.0f, 0.0f, a);
     fonts.draw_text(font, text, draw_x, draw_y, pixel_height, r, g, b, a);
+}
+
+void draw_confirm_button(FontRenderer& fonts,
+                         float x,
+                         float y,
+                         float w,
+                         float h,
+                         bool pressed,
+                         const std::string& text,
+                         float outer_r,
+                         float outer_g,
+                         float outer_b,
+                         float inner_r,
+                         float inner_g,
+                         float inner_b) {
+    const float dx = Scene::get_x(x);
+    const float dy = Scene::get_y(y);
+    const float dw = Scene::get_x(w);
+    const float dh = Scene::get_y(h);
+    const float inset = Scene::get_xy(2.0f);
+    const float gloss_h = Scene::get_y(h * 0.42f);
+
+    draw_quad(dx + Scene::get_x(2.0f), dy - Scene::get_y(2.0f), dw, dh, 0.0f, 0.0f, 0.0f, 0.28f);
+    draw_quad(dx, dy, dw, dh, outer_r, outer_g, outer_b, 0.98f);
+    draw_quad(
+        dx + inset,
+        dy + inset,
+        std::max(0.0f, dw - (inset * 2.0f)),
+        std::max(0.0f, dh - (inset * 2.0f)),
+        pressed ? inner_r * 0.78f : inner_r,
+        pressed ? inner_g * 0.78f : inner_g,
+        pressed ? inner_b * 0.78f : inner_b,
+        0.99f
+    );
+    draw_quad(
+        dx + inset,
+        dy + inset,
+        std::max(0.0f, dw - (inset * 2.0f)),
+        std::max(0.0f, gloss_h - inset),
+        1.0f,
+        1.0f,
+        1.0f,
+        pressed ? 0.08f : 0.16f
+    );
+
+    draw_centered_text_box(
+        fonts,
+        FontFaceId::Cooper,
+        text,
+        x,
+        y + 3.0f,
+        w,
+        h - 6.0f,
+        18.0f,
+        0.99f,
+        0.96f,
+        0.86f,
+        0.98f
+    );
+}
+
+const ShopConfirmLayoutTweak& confirm_layout_tweak(ShopConfirmLayoutElement element) {
+    return kShopConfirmLayoutTweaks[static_cast<int>(element)];
+}
+
+ConfirmButtonLayout confirm_button_layout(ShopConfirmLayoutElement element) {
+    const ShopConfirmLayoutTweak& tweak = confirm_layout_tweak(element);
+    const bool claim = element == ShopConfirmLayoutElement::ClaimButton;
+    return {
+        (claim ? kConfirmYesX : kConfirmNoX) + tweak.x,
+        (claim ? kConfirmYesY : kConfirmNoY) + tweak.y,
+        kConfirmButtonW * tweak.scale,
+        kConfirmButtonH * tweak.scale
+    };
 }
 
 int64_t current_utc_day_key() {
@@ -260,11 +343,14 @@ bool ShopScene::touch_confirmation(const TouchEvent& event) {
         return false;
     }
 
+    const ConfirmButtonLayout claim_button = confirm_button_layout(ShopConfirmLayoutElement::ClaimButton);
+    const ConfirmButtonLayout cancel_button = confirm_button_layout(ShopConfirmLayoutElement::CancelButton);
+
     if (event.action == TouchAction::Down) {
         confirm_pressed_id_ = -1;
-        if (hit_box(kConfirmYesX, kConfirmYesY, kConfirmButtonW, kConfirmButtonH, event.x1, event.y1)) {
+        if (hit_box(claim_button.x, claim_button.y, claim_button.w, claim_button.h, event.x1, event.y1)) {
             confirm_pressed_id_ = 0;
-        } else if (hit_box(kConfirmNoX, kConfirmNoY, kConfirmButtonW, kConfirmButtonH, event.x1, event.y1)) {
+        } else if (hit_box(cancel_button.x, cancel_button.y, cancel_button.w, cancel_button.h, event.x1, event.y1)) {
             confirm_pressed_id_ = 1;
         }
         return true;
@@ -274,7 +360,7 @@ bool ShopScene::touch_confirmation(const TouchEvent& event) {
         const int pressed = confirm_pressed_id_;
         confirm_pressed_id_ = -1;
 
-        if (pressed == 0 && hit_box(kConfirmYesX, kConfirmYesY, kConfirmButtonW, kConfirmButtonH, event.x1, event.y1)) {
+        if (pressed == 0 && hit_box(claim_button.x, claim_button.y, claim_button.w, claim_button.h, event.x1, event.y1)) {
             AudioManager::instance().play_sound(Sounds::BUTTON_CLICK_SND);
             claim_reward(confirm_choice_id_);
             confirm_visible_ = false;
@@ -282,7 +368,7 @@ bool ShopScene::touch_confirmation(const TouchEvent& event) {
             return true;
         }
 
-        if (pressed == 1 && hit_box(kConfirmNoX, kConfirmNoY, kConfirmButtonW, kConfirmButtonH, event.x1, event.y1)) {
+        if (pressed == 1 && hit_box(cancel_button.x, cancel_button.y, cancel_button.w, cancel_button.h, event.x1, event.y1)) {
             AudioManager::instance().play_sound(Sounds::BUTTON_CLICK_SND);
             confirm_visible_ = false;
             confirm_choice_id_ = -1;
@@ -464,10 +550,38 @@ void ShopScene::draw() {
 
     const bool yes_pressed = confirm_pressed_id_ == 0;
     const bool no_pressed = confirm_pressed_id_ == 1;
-    draw_quad(Scene::get_x(kConfirmYesX), Scene::get_y(kConfirmYesY), Scene::get_x(kConfirmButtonW), Scene::get_y(kConfirmButtonH), yes_pressed ? 0.78f : 0.63f, yes_pressed ? 0.55f : 0.42f, yes_pressed ? 0.20f : 0.14f, 0.98f);
-    draw_quad(Scene::get_x(kConfirmNoX), Scene::get_y(kConfirmNoY), Scene::get_x(kConfirmButtonW), Scene::get_y(kConfirmButtonH), no_pressed ? 0.48f : 0.34f, no_pressed ? 0.17f : 0.12f, no_pressed ? 0.17f : 0.12f, 0.98f);
-    draw_centered_text_box(fonts, FontFaceId::Cooper, "YES", kConfirmYesX, kConfirmYesY + 4.0f, kConfirmButtonW, kConfirmButtonH - 8.0f, 19.0f, 0.99f, 0.96f, 0.86f, 0.98f);
-    draw_centered_text_box(fonts, FontFaceId::Cooper, "NO", kConfirmNoX, kConfirmNoY + 4.0f, kConfirmButtonW, kConfirmButtonH - 8.0f, 19.0f, 0.95f, 0.92f, 0.92f, 0.98f);
+    const ConfirmButtonLayout claim_button = confirm_button_layout(ShopConfirmLayoutElement::ClaimButton);
+    const ConfirmButtonLayout cancel_button = confirm_button_layout(ShopConfirmLayoutElement::CancelButton);
+    draw_confirm_button(
+        fonts,
+        claim_button.x,
+        claim_button.y,
+        claim_button.w,
+        claim_button.h,
+        yes_pressed,
+        "CLAIM",
+        0.20f,
+        0.13f,
+        0.05f,
+        0.74f,
+        0.50f,
+        0.15f
+    );
+    draw_confirm_button(
+        fonts,
+        cancel_button.x,
+        cancel_button.y,
+        cancel_button.w,
+        cancel_button.h,
+        no_pressed,
+        "CANCEL",
+        0.11f,
+        0.12f,
+        0.15f,
+        0.33f,
+        0.36f,
+        0.42f
+    );
 }
 
 void ShopScene::update() {

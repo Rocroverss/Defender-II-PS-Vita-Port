@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -7,6 +8,24 @@
 #include "scenes/scene.hpp"
 
 namespace defender {
+
+struct ShopConfirmLayoutTweak {
+    float x;
+    float y;
+    float scale;
+};
+
+enum class ShopConfirmLayoutElement : int {
+    ClaimButton = 0,
+    CancelButton,
+    Count
+};
+
+// Editable shop confirmation button layout tweaks.
+inline std::array<ShopConfirmLayoutTweak, static_cast<int>(ShopConfirmLayoutElement::Count)> kShopConfirmLayoutTweaks = {{
+    {0.0f, 0.0f, 1.0f}, // Claim button
+    {0.0f, 0.0f, 1.0f}, // Cancel button
+}};
 
 class ShopScene : public Scene {
 public:

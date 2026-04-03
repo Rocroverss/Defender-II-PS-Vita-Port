@@ -10,6 +10,7 @@ public:
     static void reset_runtime();
 
     static bool is_show();
+    static bool wants_name_plate_touch();
     static void active();
     static void set_help(int type);
 

@@ -319,6 +319,10 @@ void handle_back_action(Game& game) {
     }
 }
 
+bool circle_should_go_back(const Game& game) {
+    return game.current_scene() != Game::MAIN_GAME || game.target_scene() != Game::MAIN_GAME;
+}
+
 void on_create_resume() {
     Param::is_create = true;
     AbstractGame::resume();
@@ -394,7 +398,9 @@ int main() {
         if (pressed & SCE_CTRL_TRIANGLE) {
             dispatch_tap(game, 560.0f, 414.0f); // Fire spell button
         }
-        if (pressed & SCE_CTRL_CIRCLE) {
+        if ((pressed & SCE_CTRL_CIRCLE) && circle_should_go_back(game)) {
+            handle_back_action(game);
+        } else if (pressed & SCE_CTRL_CIRCLE) {
             dispatch_tap(game, 740.0f, 414.0f); // Lightning spell button
         }
         if (pressed & SCE_CTRL_SQUARE) {

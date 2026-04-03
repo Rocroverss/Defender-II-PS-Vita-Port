@@ -264,6 +264,10 @@ bool HelpOverlay::is_show() {
     return s_state.is_show || s_state.alpha > 0.0f;
 }
 
+bool HelpOverlay::wants_name_plate_touch() {
+    return s_state.is_show && s_state.type == 2;
+}
+
 void HelpOverlay::active() {
     if (!s_state.is_show) {
         return;
